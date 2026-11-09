@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LiftLog</title>
+<style>
+:root{--ink:#111827;--mut:#4b5563;--acc:#0b6bcb;--red:#b91c1c;--grn:#15803d;--card:#f3f4f6}
+*{box-sizing:border-box}
+body{margin:0;background:#e5e7eb;color:var(--ink);font-family:Calibri,Carlito,system-ui,sans-serif;font-size:16px;line-height:1.4}
+button,input{font-family:inherit}
+#app{max-width:430px;min-height:100vh;margin:0 auto;background:#fff;padding:16px 16px 140px}
+h1{font-size:30px;font-weight:400;line-height:1.2;margin:12px 0 8px}h1.s{font-size:24px}
+h2{font-size:18px;font-weight:400;margin:18px 0 8px}h3{margin:0;font-size:16px}
+.mut{color:var(--mut)}.sm{font-size:14px}.grn{color:var(--grn)}
+:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
+.card{border:1px solid #d1d5db;border-radius:8px;padding:12px;margin:8px 0}.card.acc{border-color:var(--acc)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.steps .card{margin:0;background:var(--card);font-weight:700;font-size:14px;text-align:center}
+.btn{min-height:44px;padding:0 14px;border:1.5px solid var(--ink);border-radius:6px;background:#fff;color:var(--ink);font-size:15px;font-weight:700;cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;text-transform:uppercase;letter-spacing:.4px}
+.btn.dng{background:var(--red);border-color:var(--red);color:#fff}
+.btn:disabled{background:#e5e7eb;border-color:#e5e7eb;color:#6b7280;cursor:not-allowed}
+.btn.full{width:100%;margin-top:10px}.btn.s{font-size:12px;padding:0 6px;min-width:44px}
+.lnk{min-height:44px;background:none;border:0;color:var(--acc);font-size:15px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0 4px}
+.top{display:flex;justify-content:space-between}
+.step{font-size:14px;margin:4px 0 12px}.step b{color:var(--acc)}.step span{color:var(--mut)}
+.seg{display:flex;gap:8px}.seg button{flex:1;min-height:44px;border:1px solid #9ca3af;background:#fff;border-radius:6px;font-weight:700;font-size:15px}
+.seg .on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.grp{width:100%;text-align:left;min-height:44px;border:1px solid #d1d5db;border-radius:6px;background:#fff;font-weight:700;font-size:15px;margin:3px 0;padding:0 10px}
+.pick{display:flex;align-items:center;gap:12px;min-height:44px;padding-left:10px;cursor:pointer}
+.pick input,.chk input{width:28px;height:28px;accent-color:var(--acc)}
+.eh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.row{display:grid;grid-template-columns:24px 1fr 64px 56px 44px 66px;gap:5px;align-items:center;margin-bottom:6px;text-align:center}
+.row.hd{font-size:11px;color:var(--mut);margin-bottom:2px}
+.row input[type=text]{height:44px;width:100%;font-size:16px;text-align:center;border:1px solid #9ca3af;border-radius:4px}
+.row input.bad{border:2px solid var(--red)}.row input[readonly]{background:var(--card)}
+.last{font-size:12px;color:var(--mut);line-height:1.1}.chk{display:grid;place-items:center;height:44px}
+.err{color:var(--red);font-size:13px;font-weight:700;margin:-2px 0 8px}
+.bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;z-index:5}
+.tabs{display:flex;background:#263238}.tabs button{flex:1;min-height:56px;background:none;border:0;color:#aeb7bc;font-size:12px}
+.tabs b{display:block;font-size:18px}.tabs .on{color:#fff;font-weight:700}
+.act{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;background:var(--card);border-top:1px solid #d1d5db}
+.toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:398px;background:var(--ink);color:#fff;border-radius:6px;padding:0 12px;display:flex;justify-content:space-between;align-items:center;z-index:6}
+.toast .lnk{color:#7fc1ff}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:10;padding:16px}
+.dlg{background:#fff;border:2px solid var(--ink);border-radius:10px;padding:16px;width:100%;max-width:360px}
+.dlg h3{font-size:18px;margin-bottom:8px}.dbtn{display:flex;gap:10px;margin-top:14px}.dbtn .btn{flex:1}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const LIB = {
+  Chest: ['Bench Press', 'Incline Dumbbell Press', 'Push-Up'],
+  Back: ['Barbell Row', 'Deadlift', 'Lat Pulldown'],
+  Legs: ['Leg Press', 'Lunge', 'Squat'],
+  Shoulders: ['Lateral Raise', 'Overhead Press', 'Rear Delt Fly'],
+  Arms: ['Bicep Curl', 'Hammer Curl', 'Tricep Pushdown']
+};
+const ALL = Object.values(LIB).flat();
+const $ = (id) => document.getElementById(id);
+let db = { current: null, history: [] };
+try { db = JSON.parse(localStorage.getItem('liftlog')) || db; } catch (e) {}
+const save = () => { try { localStorage.setItem('liftlog', JSON.stringify(db, (k, v) => k === 'err' ? undefined : v)); } catch (e) {} };
+const ui = { view: 'home', tab: 'm', open: { Chest: true }, sel: [], show: true, toast: null, dlg: null, undo: null };
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const fmtD = (d) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const blank = () => ({ w: '', r: '', done: false });
+const count = (c, f) => c.exercises.reduce((a, e) => a + e.sets.filter(f).length, 0);
+
+function last(name) {
+  for (let i = db.history.length - 1; i >= 0; i--) {
+    const e = db.history[i].exercises.find((x) => x.name === name);
+    if (e) return e.sets;
+  }
+  return [];
+}
+function check(s) {
+  if (!/^\d+(\.\d+)?$/.test(String(s.w).trim())) return ['w', 'Enter weight as a number (0 or more)'];
+  if (!/^[1-9]\d*$/.test(String(s.r).trim())) return ['r', 'Enter reps as a whole number'];
+  return null;
+}
+
+// ---------- views ----------
+const tabs = (on) => `<nav class="bar tabs"><button data-a="home" class="${on === 'w' ? 'on' : ''}"><b>＋</b>Workout</button><button data-a="help" class="${on === 'h' ? 'on' : ''}"><b>?</b>Help</button></nav>`;
+const step = (t, nx) => `<p class="step"><b>${t}</b>${nx ? `<br><span>${nx}</span>` : ''}</p>`;
+const link = (a, t) => `<button class="lnk" data-a="${a}">${t}</button>`;
+
+function home() {
+  const c = db.current;
+  let h = `<h1>Workout</h1><p>LiftLog records the weight and reps of every set you lift, then shows what you did last time so you always know what to beat.</p>
+<p class="mut sm">Free · Saved only on this device, never uploaded · About 10 seconds to log a set</p>`;
+  if (c) {
+    const t = new Date(c.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    h += `<h2>Quick start</h2><div class="card acc"><b>You have an unfinished workout</b><br>${fmtD(c.start)} · started ${t}<br>${count(c, (s) => s.done)} of ${count(c, () => true)} sets done<button class="btn pri full" data-a="resume">Resume Workout</button></div>
+<button class="btn pri full" disabled>Start New Workout</button><p class="mut sm">Finish or discard your unfinished workout first. Tap Resume Workout, then Cancel Workout to discard it.</p>`;
+  } else {
+    h += `<h2>How it works</h2><div class="steps"><div class="card">1. Choose your exercises</div><div class="card">2. Log weight and reps</div><div class="card">3. Finish to save</div></div>
+<h2>Quick start</h2><button class="btn pri full" data-a="choose">Start New Workout</button>`;
+  }
+  return h + `<p class="sm mut">Need a hand? ${link('help', 'Open Help')}</p>` + tabs('w');
+}
+
+function choose() {
+  const az = ui.tab === 'a';
+  const row = (n) => `<label class="pick"><input type="checkbox" data-ch="pick" data-x="${n}" data-k="p-${n}" ${ui.sel.includes(n) ? 'checked' : ''}>${n}</label>`;
+  const list = az ? [...ALL].sort().map(row).join('') : Object.entries(LIB).map(([g, it]) => {
+    const o = ui.open[g], k = it.filter((n) => ui.sel.includes(n)).length;
+    return `<button class="grp" data-a="grp" data-x="${g}" data-k="g-${g}" aria-expanded="${!!o}">${o ? '▾' : '▸'} ${g} (${it.length})${k ? ` · ${k} selected` : ''}</button>` + (o ? it.map(row).join('') : '');
+  }).join('');
+  const n = ui.sel.length;
+  return `<div class="top">${link('home', '← Back')}${link('help', 'Help')}</div><h1 class="s">Choose exercises</h1>${step('Step 1 of 3: Choose exercises', 'Next: Log sets › Finish and save')}
+<div class="seg" role="tablist"><button role="tab" aria-selected="${!az}" class="${az ? '' : 'on'}" data-a="tab" data-x="m" data-k="t-m">By muscle group</button><button role="tab" aria-selected="${az}" class="${az ? 'on' : ''}" data-a="tab" data-x="a" data-k="t-a">A–Z list</button></div>
+<p class="mut sm">${az ? 'Prefer browsing? Switch to the By muscle group tab.' : "Can't find an exercise? Switch to the A–Z list tab."}</p>${list}
+<div class="bar act"><b>${n} selected</b><button class="btn pri" data-a="begin" ${n ? '' : 'disabled'}>Start Workout (${n})</button></div>`;
+}
+
+function work() {
+  const c = db.current;
+  const ex = c.exercises.map((e, ei) => {
+    const L = last(e.name);
+    const rows = e.sets.map((s, si) => {
+      const l = L[si], er = s.err, id = `${ei}-${si}`, nm = `${e.name} set ${si + 1}`;
+      const inp = (f, lab, mode) => `<input type="text" inputmode="${mode}" aria-label="${lab}, ${nm}" data-f="${f}" data-e="${ei}" data-s="${si}" data-k="${f}-${id}" value="${esc(s[f])}" ${s.done ? 'readonly' : ''} class="${er && er.f === f ? 'bad' : ''}">`;
+      return `<div class="row"><span>${si + 1}</span><span class="last">${ui.show ? (l ? `Last: ${l.w} × ${l.r}` : 'Last: —') : ''}</span>${inp('w', 'Weight in pounds', 'decimal')}${inp('r', 'Reps', 'numeric')}
+<label class="chk"><input type="checkbox" aria-label="Done, ${nm}" data-ch="done" data-x="${ei}" data-y="${si}" data-k="c-${id}" ${s.done ? 'checked' : ''}></label>
+<button class="btn s" data-a="rem" data-x="${ei}" data-y="${si}" data-k="x-${id}" ${e.sets.length < 2 ? 'disabled' : ''}>✕ Remove</button></div>${er ? `<p class="err">${er.msg}</p>` : ''}`;
+    }).join('');
+    return `<section class="card"><div class="eh"><h3>${e.name}</h3><button class="btn s" data-a="add" data-x="${ei}" data-k="a-${ei}">+ Add Set</button></div>
+<div class="row hd"><span>Set</span><span>${ui.show ? 'Last' : ''}</span><span>Weight (lb)</span><span>Reps</span><span>Done</span><span></span></div>${rows}</section>`;
+  }).join('');
+  return `<div class="top">${step('Step 2 of 3: Log your sets', 'Next: Finish and save')}${link('help', 'Help')}</div><h1 class="s">Workout · ${fmtD(c.start)}</h1>
+<label class="pick"><input type="checkbox" data-ch="tog" data-k="tog" ${ui.show ? 'checked' : ''}>Show last session</label>${ex}
+${ui.toast ? `<div class="toast" id="toast">${ui.toast}<button class="lnk" data-a="undo">Undo</button></div>` : ''}
+<div class="bar act"><button class="btn" data-a="cancelW">Cancel Workout</button><button class="btn pri" data-a="finish">Finish Workout</button></div>`;
+}
+
+function saved() {
+  const h = db.history[db.history.length - 1];
+  const n = h.exercises.reduce((a, e) => a + e.sets.length, 0);
+  return `<h1 class="s grn">✓ Workout saved.</h1>${step('Step 3 of 3: Finish and save')}
+<div class="card"><b>${fmtD(h.date)} · ${h.exercises.length} exercise${h.exercises.length > 1 ? 's' : ''} · ${n} set${n > 1 ? 's' : ''} saved</b>${h.exercises.map((e) => `<br>${e.name}: ${e.sets.map((s) => `${s.w} × ${s.r}`).join(', ')}`).join('')}</div>
+<p>Next time you do these exercises, LiftLog shows these numbers as “Last” next to each set, so you know what to beat.</p>
+<button class="btn pri full" data-a="choose">Start Another Workout</button><button class="btn full" data-a="home">Back to Home</button>
+<p class="mut sm">Made a mistake? Undo the save to reopen this workout and keep editing.</p><button class="btn full" data-a="undoSave">Undo Save</button>` + tabs('w');
+}
+
+function help() {
+  return `<h1>Help</h1><div class="card"><b>How to log a workout</b><ol style="padding-left:20px;margin:6px 0 0">
+<li>On Home, tap Start New Workout.</li><li>Tick the exercises you plan to do, then tap Start Workout.</li>
+<li>For each set, type the weight and reps and tick Done. Tick it again to edit.</li>
+<li>Need more or fewer sets? Tap + Add Set or Remove. Tap Undo if you remove one by mistake.</li>
+<li>Tap Finish Workout to save. Tap Undo Save if you need to change it.</li></ol></div>
+<div class="card sm"><b>Keyboard:</b> press Tab to move between fields and Enter in a Reps box to mark the set Done. Prefer mouse or touch? Just tick the Done box.</div>
+<div class="card sm"><b>Where is my data?</b> It is saved only in this browser on this device and is never uploaded. Clearing your browser data erases it.</div>` + tabs('h');
+}
+
+const dlgHtml = () => !ui.dlg ? '' : `<div class="ov"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dt"><h3 id="dt">${ui.dlg.title}</h3><p>${ui.dlg.body}</p>
+<div class="dbtn">${ui.dlg.cancel ? `<button class="btn" data-a="dno" autofocus>${ui.dlg.cancel}</button>` : ''}<button class="btn ${ui.dlg.cls || 'pri'}" data-a="dok" ${ui.dlg.cancel ? '' : 'autofocus'}>${ui.dlg.ok}</button></div></div></div>`;
+
+function render(nav) {
+  const k = !nav && document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null;
+  if (ui.view === 'work' && !db.current) ui.view = 'home';
+  $('app').innerHTML = { home, choose, work, saved, help }[ui.view]() + dlgHtml();
+  const f = ui.dlg ? document.querySelector('[autofocus]') : (k && document.querySelector(`[data-k="${k}"]`));
+  if (f) f.focus();
+}
+function go(v) { ui.view = v; ui.toast = null; ui.dlg = null; render(true); window.scrollTo(0, 0); }
+function dlg(o) { ui.dlg = o; render(); }
+
+// ---------- actions ----------
+const A = {
+  home: () => go('home'), help: () => go('help'), resume: () => go('work'),
+  choose: () => { ui.sel = []; go('choose'); },
+  tab: (v) => { ui.tab = v; render(); },
+  grp: (g) => { ui.open[g] = !ui.open[g]; render(); },
+  pick: (n) => { ui.sel = ui.sel.includes(n) ? ui.sel.filter((x) => x !== n) : [...ui.sel, n]; render(); },
+  tog: (x, y, on) => { ui.show = on; render(); },
+  begin: () => {
+    db.current = { start: Date.now(), exercises: ALL.filter((n) => ui.sel.includes(n)).map((name) => ({ name, sets: [blank(), blank(), blank()] })) };
+    save(); go('work');
+  },
+  add: (e) => { db.current.exercises[e].sets.push(blank()); save(); render(); },
+  rem: (e, s) => {
+    const ex = db.current.exercises[e], S = ex.sets[s];
+    if (S.w === '' && S.r === '') return A.doRem(e, s);
+    dlg({ title: 'Remove this set?', body: `Set ${+s + 1} of ${ex.name} has numbers entered (${esc(S.w) || '—'} × ${esc(S.r) || '—'}). Removing it deletes them. You can tap Undo right after if you change your mind.`, cancel: 'Keep Set', ok: 'Remove Set', cls: 'dng', fn: () => A.doRem(e, s) });
+  },
+  doRem: (e, s) => {
+    ui.undo = { e: +e, s: +s, set: db.current.exercises[e].sets.splice(s, 1)[0] };
+    ui.toast = `Set ${+s + 1} removed.`;
+    clearTimeout(ui.tt);
+    ui.tt = setTimeout(() => { ui.toast = null; const t = $('toast'); if (t) t.remove(); }, 8000);
+    save(); render();
+  },
+  undo: () => { const u = ui.undo; db.current.exercises[u.e].sets.splice(u.s, 0, u.set); ui.toast = null; save(); render(); },
+  done: (e, s, on) => {
+    const S = db.current.exercises[e].sets[s], r = on ? check(S) : null;
+    S.done = on && !r;
+    if (r) S.err = { f: r[0], msg: r[1] }; else delete S.err;
+    save(); render();
+    if (r) { const f = document.querySelector(`[data-k="${r[0]}-${e}-${s}"]`); if (f) f.focus(); }
+  },
+  finish: () => {
+    const inc = []; let n = 0;
+    db.current.exercises.forEach((e) => e.sets.forEach((s, i) => s.done ? n++ : inc.push(`${e.name} set ${i + 1}`)));
+    if (!n) return dlg({ title: 'Nothing to save yet', body: 'Tick Done on at least one set before finishing.', ok: 'OK' });
+    dlg({ title: 'Finish this workout?', body: (inc.length ? `${inc.length} set${inc.length > 1 ? 's are' : ' is'} not marked Done and won't be saved: ${inc.join(', ')}. ` : `All ${n} sets will be saved. `) + 'Saving takes about 1 second, and you can undo it right after.', cancel: 'Keep Logging', ok: 'Finish and Save', fn: A.doFin });
+  },
+  doFin: () => {
+    const ex = db.current.exercises.map((e) => ({ name: e.name, sets: e.sets.filter((s) => s.done).map((s) => ({ w: s.w.trim(), r: s.r.trim() })) })).filter((e) => e.sets.length);
+    db.history.push({ date: new Date().toISOString(), exercises: ex });
+    db.current = null; save(); go('saved');
+  },
+  cancelW: () => dlg({ title: 'Cancel this workout?', body: `Everything in this workout (${count(db.current, (s) => s.done)} sets done) will be deleted, and this can't be undone. Your saved workouts are not affected.`, cancel: 'Keep Workout', ok: 'Cancel Workout', cls: 'dng', fn: () => { db.current = null; save(); go('home'); } }),
+  undoSave: () => {
+    const h = db.history.pop();
+    db.current = { start: new Date(h.date).getTime(), exercises: h.exercises.map((e) => ({ name: e.name, sets: e.sets.map((s) => ({ w: s.w, r: s.r, done: true })) })) };
+    save(); go('work');
+  },
+  dno: () => { ui.dlg = null; render(); },
+  dok: () => { const f = ui.dlg.fn; ui.dlg = null; render(); if (f) f(); }
+};
+
+document.addEventListener('click', (e) => { const t = e.target.closest('[data-a]'); if (t && !t.disabled) A[t.dataset.a](t.dataset.x, t.dataset.y); });
+document.addEventListener('change', (e) => { const t = e.target; if (t.dataset.ch) A[t.dataset.ch](t.dataset.x, t.dataset.y, t.checked); });
+document.addEventListener('input', (e) => {
+  const t = e.target, f = t.dataset.f;
+  if (!f) return;
+  const s = db.current.exercises[t.dataset.e].sets[t.dataset.s];
+  s[f] = t.value; delete s.err; t.classList.remove('bad');
+  const nx = t.closest('.row').nextElementSibling;
+  if (nx && nx.classList.contains('err')) nx.remove();
+  save();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && ui.dlg) A.dno();
+  else if (e.key === 'Enter' && e.target.dataset.f === 'r') A.done(e.target.dataset.e, e.target.dataset.s, true);
+});
+render(true);
+</script>
+</body>
+</html>
